@@ -1,0 +1,97 @@
+### **Project: SillyTavern "Corruption Guard" PowerShell Script (Version 3)**
+
+#### **1. High-Level Goal**
+
+To create a modular PowerShell script that acts as both a launcher for SillyTavern and a real-time monitor. The script will protect `index.json` vector database files from corruption by maintaining a healthy backup and automatically restoring it if a sudden, drastic file size reduction is detected.
+
+#### **2. Core Functionality**
+
+*   **Launcher:** The script is the primary way to start SillyTavern.
+*   **Singleton Instance:** Only one instance of the monitoring script can run at a time.
+*   **Dynamic File Monitoring:** Efficiently watch a root directory for changes to *any* `index.json` files within its subdirectory tree, including those created *after* the script has started.
+*   **Automated Backup:** Periodically create and maintain a single backup for each discovered `index.json` file.
+*   **Corruption Detection:** Identify potential corruption based on a significant drop in file size compared to its backup.
+*   **Automated Recovery:** Automatically kill SillyTavern, restore the backup, and restart SillyTavern upon detecting corruption.
+
+#### **3. Detailed Workflow & Logic**
+
+**A. Script Initialization**
+
+1.  **Singleton Check:** On startup, the script must use a named Mutex to ensure it is the only instance running. If another instance holds the Mutex, display an error message and exit immediately.
+2.  **Launch SillyTavern:** Start the SillyTavern process (e.g., `start.bat` or the relevant executable).
+3.  **Start Monitoring:**
+    *   **NEW:** Initialize a single `FileSystemWatcher` on the root `$vectorsRootPath`.
+    *   **NEW:** Configure the watcher to be recursive (`IncludeSubdirectories = $true`) and to notify on `Changed`, `Created`, and `Renamed` events for files matching the filter `index.json`.
+    *   Start a recurring timer for the backup process.
+
+**B. Periodic Backup Process (Runs every 60 seconds)**
+
+1.  **Dynamic Discovery:** On each execution of the timer, perform a fresh recursive search (`Get-ChildItem`) under `$vectorsRootPath` to get the current list of all `index.json` files.
+2.  For each `index.json` file found:
+    *   **Define Files:**
+        *   `sourceFile` = `path/to/index.json`
+        *   `backupFile` = `path/to/index.json.bak`
+    *   **REVISED (Lazy Backup Decision Logic):** This new logic prioritizes fast file size comparisons to avoid unnecessary file reading and parsing.
+
+        *   **Case 1: Backup Does Not Exist.**
+            *   This is a one-time operation for a new `index.json` file.
+            *   **Health Check:** Read the `sourceFile` and validate its JSON structure.
+            *   If the JSON is valid, create `backupFile` as a copy of `sourceFile`.
+            *   If the JSON is invalid, log a warning and do not create a backup.
+
+        *   **Case 2: Backup Exists.**
+            *   **Fast Check:** Get `sourceSize` and `backupSize`.
+            *   **If `sourceSize` <= `backupSize`:**
+                *   **Action: Skip.** Do nothing. The backup is either the same size or larger, so it remains the "last known good" version. No file I/O or parsing is needed.
+            *   **If `sourceSize` > `backupSize`:**
+                *   This is the only scenario where the backup might be updated.
+                *   **Lazy Health Check:** Now, perform the expensive check. Read the `sourceFile` and validate its JSON structure.
+                *   **If JSON is valid:** Overwrite `backupFile` with the new, larger, and validated `sourceFile`.
+                *   **If JSON is invalid:**
+                    *   **Action: Do NOT update the backup.**
+                    *   Log a critical warning to the console stating that `sourceFile` is larger but has an invalid JSON structure, and the existing `backupFile` was preserved.
+
+**C. File Change Detection (Event-Driven)**
+
+This process remains the primary, real-time corruption detection mechanism. Its logic is already fast and does not need to change.
+
+1.  When a `Changed` or `Created` event is detected for an `index.json` file (`sourceFile`):
+2.  Check if a corresponding `backupFile` exists. If not, do nothing.
+3.  Get `sourceSize` and `backupSize`.
+4.  **Evaluate Corruption Condition:**
+    *   `condition1 = backupSize > 1 MB`
+    *   `condition2 = sourceSize < (backupSize * $corruptionDropRatio)`
+5.  **If `condition1` AND `condition2` are both true**, immediately trigger the **Automated Recovery Process (D)**.
+
+**D. Automated Recovery Process**
+
+This logic is triggered only by the event-driven file size drop (Section C). *Note: The invalid JSON check in the backup process (Section B) now only logs a warning and does not trigger a full recovery, as this is a safer approach for that specific condition.*
+
+1.  **Log Warning:** Print a clear warning about the detected size drop.
+2.  **Terminate SillyTavern:** Forcibly stop the SillyTavern process.
+3.  **Restore File:** Copy the `backupFile` over the `sourceFile`.
+4.  **Restart SillyTavern:** Relaunch the SillyTavern process.
+5.  **Resume:** The script continues its monitoring and backup cycles.
+
+#### **4. Configuration**
+
+The following parameters should be defined as easily editable variables at the top of the script:
+
+*   `$sillyTavernExecutablePath`: Path to the SillyTavern launcher (e.g., `"D:\soft\SillyTavern\SillyTavern\start.bat"`).
+*   `$sillyTavernProcessName`: The name of the SillyTavern process to kill (e.g., `"node"` or `"SillyTavern"`).
+*   `$vectorsRootPath`: The top-level directory to monitor (e.g., `"D:\soft\SillyTavern\SillyTavern\data\default-user\vectors\"`).
+*   `$backupIntervalSeconds`: The frequency of the backup timer (e.g., `60`).
+*   `$corruptionThresholdMB`: The minimum backup size to be eligible for corruption checks (e.g., `1`).
+*   `$corruptionDropRatio`: The fraction of the backup size below which the current file is considered corrupt (e.g., `0.333` for 1/3).
+
+#### **5. Technical Principles & Constraints**
+
+*   Language: PowerShell (`.ps1`).
+*   Platform: Windows only.
+*   **Efficiency:**
+    *   Uses `System.IO.FileSystemWatcher` for real-time, event-driven monitoring.
+    *   **NEW (Lazy Processing):** The periodic backup process is optimized to avoid expensive file I/O and JSON parsing. It relies on fast file metadata comparisons for most checks, only performing a full validation when a backup is a candidate for being overwritten with a larger file.
+*   Simplicity (KISS/YAGNI): Focuses solely on the defined workflow.
+*   Modularity (SOLID/DRY): Logic is separated into clear, reusable functions.
+*   Error Handling: Gracefully handles potential file-access errors.
+*   Dependencies: PowerShell 5.1 or later.
