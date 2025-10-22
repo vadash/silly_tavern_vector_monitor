@@ -1,0 +1,16 @@
+{
+  "sillyTavern": {
+    "executablePath": "D:\\soft\\SillyTavern\\SillyTavern\\start.bat",
+    "processName": "node"
+  },
+  "monitoring": {
+    "vectorsRootPath": "D:\\soft\\SillyTavern\\SillyTavern\\data\\default-user\\vectors",
+    "backupIntervalSeconds": 60,
+    "corruptionThresholdMB": 1,
+    "corruptionDropRatio": 0.333
+  },
+  "logging": {
+    "level": "Info",
+    "includeTimestamp": true
+  }
+}
