@@ -29,6 +29,8 @@ function Start-FileMonitoring {
                                            [System.IO.NotifyFilters]::LastWrite
         $script:FileWatcher.InternalBufferSize = $fileMonitorConfig.BufferSize
         
+        $eventQueue = $script:FileChangeEvents
+        
         $onChanged = {
             param($sender, $e)
             $eventData = @{
@@ -37,7 +39,7 @@ function Start-FileMonitoring {
                 ChangeType = $e.ChangeType
                 Timestamp = Get-Date
             }
-            $script:FileChangeEvents.Enqueue($eventData)
+            $Event.MessageData.Enqueue($eventData)
         }
         
         $onCreated = {
@@ -48,7 +50,7 @@ function Start-FileMonitoring {
                 ChangeType = $e.ChangeType
                 Timestamp = Get-Date
             }
-            $script:FileChangeEvents.Enqueue($eventData)
+            $Event.MessageData.Enqueue($eventData)
         }
         
         $onRenamed = {
@@ -60,12 +62,12 @@ function Start-FileMonitoring {
                 ChangeType = $e.ChangeType
                 Timestamp = Get-Date
             }
-            $script:FileChangeEvents.Enqueue($eventData)
+            $Event.MessageData.Enqueue($eventData)
         }
         
-        Register-ObjectEvent -InputObject $script:FileWatcher -EventName "Changed" -Action $onChanged -SourceIdentifier "FileChanged" | Out-Null
-        Register-ObjectEvent -InputObject $script:FileWatcher -EventName "Created" -Action $onCreated -SourceIdentifier "FileCreated" | Out-Null
-        Register-ObjectEvent -InputObject $script:FileWatcher -EventName "Renamed" -Action $onRenamed -SourceIdentifier "FileRenamed" | Out-Null
+        Register-ObjectEvent -InputObject $script:FileWatcher -EventName "Changed" -Action $onChanged -SourceIdentifier "FileChanged" -MessageData $eventQueue | Out-Null
+        Register-ObjectEvent -InputObject $script:FileWatcher -EventName "Created" -Action $onCreated -SourceIdentifier "FileCreated" -MessageData $eventQueue | Out-Null
+        Register-ObjectEvent -InputObject $script:FileWatcher -EventName "Renamed" -Action $onRenamed -SourceIdentifier "FileRenamed" -MessageData $eventQueue | Out-Null
         
         $script:FileWatcher.EnableRaisingEvents = $true
         
