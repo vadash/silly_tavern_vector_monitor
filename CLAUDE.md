@@ -4,7 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-SillyTavern Corruption Guard is a PowerShell-based monitoring system that protects SillyTavern vector database files (index.json) from corruption. It uses file system monitoring to detect when vector index files shrink unexpectedly (indicating corruption), then automatically stops SillyTavern, restores from backup, and restarts the process.
+SillyTavern Corruption Guard is a **cross-platform** PowerShell-based monitoring system that protects SillyTavern vector database files (index.json) from corruption. It uses file system monitoring to detect when vector index files shrink unexpectedly (indicating corruption), then automatically stops SillyTavern, restores from backup, and restarts the process.
+
+**Platform Support:**
+- ✅ Windows (PowerShell 5.1 or 7+)
+- ✅ Linux (PowerShell 7+)
+- ✅ macOS (PowerShell 7+)
+
+For detailed setup instructions, see [README.md](README.md).
 
 ## Architecture
 
@@ -20,6 +27,7 @@ BackupManager.ps1        # Lazy backup evaluation and creation
 RecoveryManager.ps1      # Corruption detection and recovery workflow
 ProcessManager.ps1       # SillyTavern process control
 Common/Logger.ps1        # Centralized logging with color coding
+Common/PlatformHelper.ps1 # Cross-platform compatibility layer (NEW)
 ```
 
 ### Key Architectural Patterns
@@ -41,12 +49,26 @@ This prevents corrupted files from overwriting good backups.
 
 ## Running the Application
 
+### Windows
 ```powershell
 # Run with default configuration (config/settings.json)
 .\ST_VM_Main.ps1
 
 # Run with custom configuration file
-.\ST_VM_Main.ps1 path\to\custom-config.json
+.\ST_VM_Main.ps1 -ConfigFilePath path\to\custom-config.json
+```
+
+### Linux/macOS
+```bash
+# Install PowerShell 7+ first (see README.md for instructions)
+pwsh ./ST_VM_Main.ps1
+
+# Or use the launcher
+chmod +x start.sh
+./start.sh
+
+# With custom configuration
+pwsh ./ST_VM_Main.ps1 -ConfigFilePath /path/to/custom-config.json
 ```
 
 The main script will:
@@ -106,10 +128,19 @@ If no config file exists, the system falls back to hardcoded defaults in Config.
 - Tracks recovery attempts per file (max 3 attempts by default)
 
 ### ProcessManager.ps1
-- `Start-SillyTavern()` - Launches start.bat and finds the node process
-- `Stop-SillyTavern($TimeoutSeconds)` - Gracefully terminates with timeout
+- `Start-SillyTavern()` - Launches start.bat/.sh and finds the node process
+- `Stop-SillyTavern($TimeoutSeconds)` - Gracefully terminates with timeout (uses SIGTERM on Linux)
 - `Restart-SillyTavern()` - Stop + Start with force fallback
 - `Test-ProcessHealth()` - Checks if process is still running
+
+### PlatformHelper.ps1 (NEW)
+- `Get-PlatformInfo()` - Returns current platform details
+- `New-CrossPlatformMutex($Name)` - Creates mutex (Windows) or file-based lock (Linux/macOS)
+- `Enter-CrossPlatformMutex()` / `Exit-CrossPlatformMutex()` - Lock acquisition and release
+- `Stop-ProcessSafely($Process)` - Platform-aware process termination
+- `Get-ExecutableExtension()` - Returns .bat (Windows) or .sh (Linux/macOS)
+- `Get-DefaultSillyTavernPath()` - Platform-specific default paths
+- `Set-ExecutablePermission()` - Sets +x on Linux/macOS (no-op on Windows)
 
 ## Important Implementation Details
 

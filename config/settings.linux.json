@@ -1,0 +1,15 @@
+{
+    "sillyTavern": {
+        "executablePath": "/home/user/SillyTavern/start.sh",
+        "processName": "node"
+    },
+    "monitoring": {
+        "vectorsRootPath": "/home/user/SillyTavern/data/default-user/vectors",
+        "backupIntervalSeconds": 60,
+        "corruptionThresholdMB": 1,
+        "corruptionDropRatio": 0.333
+    },
+    "logging": {
+        "level": "Info"
+    }
+}

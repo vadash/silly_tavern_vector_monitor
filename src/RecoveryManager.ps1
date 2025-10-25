@@ -1,9 +1,11 @@
-$script:LoggerPath = Join-Path $PSScriptRoot "Common\Logger.ps1"
+$script:LoggerPath = Join-Path $PSScriptRoot "Common" "Logger.ps1"
+$script:PlatformHelperPath = Join-Path $PSScriptRoot "Common" "PlatformHelper.ps1"
 $script:ConfigPath = Join-Path $PSScriptRoot "Config.ps1"
 $script:ProcessManagerPath = Join-Path $PSScriptRoot "ProcessManager.ps1"
 $script:BackupManagerPath = Join-Path $PSScriptRoot "BackupManager.ps1"
 
 Import-Module $script:LoggerPath -Force
+Import-Module $script:PlatformHelperPath -Force
 Import-Module $script:ConfigPath -Force
 Import-Module $script:ProcessManagerPath -Force
 Import-Module $script:BackupManagerPath -Force

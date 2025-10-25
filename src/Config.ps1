@@ -1,5 +1,7 @@
-$script:LoggerPath = Join-Path $PSScriptRoot "Common\Logger.ps1"
+$script:LoggerPath = Join-Path $PSScriptRoot "Common" "Logger.ps1"
+$script:PlatformHelperPath = Join-Path $PSScriptRoot "Common" "PlatformHelper.ps1"
 Import-Module $script:LoggerPath -Force
+Import-Module $script:PlatformHelperPath -Force
 
 $script:SillyTavernConfig = $null
 $script:ConfigMutex = $null
@@ -7,7 +9,7 @@ $script:ConfigMutex = $null
 function Initialize-Configuration {
     param(
         [Parameter(Mandatory=$false)]
-        [string]$ConfigFilePath = (Join-Path $PSScriptRoot "config\settings.json")
+        [string]$ConfigFilePath = (Join-Path (Split-Path $PSScriptRoot -Parent) "config" "settings.json")
     )
     
     Write-LogInfo "Initializing configuration..."
@@ -45,10 +47,14 @@ function Initialize-Configuration {
                 }
             }
         } else {
+            # Platform-specific defaults
+            $defaultBasePath = Get-DefaultSillyTavernPath
+            $execExtension = Get-ExecutableExtension
+            
             $script:SillyTavernConfig = @{
-                SillyTavernExecutablePath = "C:\SillyTavern\start.bat"
+                SillyTavernExecutablePath = Join-Path $defaultBasePath "start$execExtension"
                 SillyTavernProcessName = "node"
-                VectorsRootPath = "C:\SillyTavern\data\default-user\vectors"
+                VectorsRootPath = Get-DefaultVectorsPath
                 BackupIntervalSeconds = 60
                 CorruptionThresholdMB = 1
                 CorruptionDropRatio = 0.333
@@ -156,9 +162,9 @@ function Initialize-SingletonMutex {
     
     try {
         $mutexName = $script:SillyTavernConfig.MutexName
-        $script:ConfigMutex = New-Object System.Threading.Mutex($false, $mutexName)
+        $script:ConfigMutex = New-CrossPlatformMutex -Name $mutexName
         
-        if (-not $script:ConfigMutex.WaitOne(0)) {
+        if (-not (Enter-CrossPlatformMutex -MutexObject $script:ConfigMutex -TimeoutMs 0)) {
             Write-LogError "Another instance of SillyTavern Corruption Guard is already running"
             return $false
         }
@@ -175,8 +181,7 @@ function Initialize-SingletonMutex {
 function Release-SingletonMutex {
     if ($null -ne $script:ConfigMutex) {
         try {
-            $script:ConfigMutex.ReleaseMutex()
-            $script:ConfigMutex.Dispose()
+            Dispose-CrossPlatformMutex -MutexObject $script:ConfigMutex
             Write-LogInfo "Singleton mutex released"
         } catch {
             Write-LogWarning "Failed to release mutex: $($_.Exception.Message)"

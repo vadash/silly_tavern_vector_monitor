@@ -1,7 +1,9 @@
-$script:LoggerPath = Join-Path $PSScriptRoot "Common\Logger.ps1"
+$script:LoggerPath = Join-Path $PSScriptRoot "Common" "Logger.ps1"
+$script:PlatformHelperPath = Join-Path $PSScriptRoot "Common" "PlatformHelper.ps1"
 $script:ConfigPath = Join-Path $PSScriptRoot "Config.ps1"
 
 Import-Module $script:LoggerPath -Force
+Import-Module $script:PlatformHelperPath -Force
 Import-Module $script:ConfigPath -Force
 
 $script:SillyTavernProcess = $null
@@ -26,6 +28,10 @@ function Start-SillyTavern {
         }
         
         $workingDirectory = Split-Path $executablePath -Parent
+        
+        # Ensure executable has proper permissions on Linux
+        Set-ExecutablePermission -Path $executablePath
+        
         $process = Start-Process -FilePath $executablePath -WorkingDirectory $workingDirectory -PassThru
         
         Start-Sleep -Seconds 3
@@ -63,7 +69,14 @@ function Stop-SillyTavern {
         }
         
         Write-LogInfo "Terminating SillyTavern process (PID: $($process.Id))..."
-        $process.Kill()
+        
+        # Use cross-platform process stopping
+        $stopped = Stop-ProcessSafely -Process $process
+        
+        if (-not $stopped) {
+            Write-LogWarning "Graceful stop failed, forcing termination..."
+            $stopped = Stop-ProcessSafely -Process $process -Force
+        }
         
         $waited = $process.WaitForExit($TimeoutSeconds * 1000)
         
